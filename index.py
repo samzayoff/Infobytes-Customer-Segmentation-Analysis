@@ -1,88 +1,100 @@
-# Retail Sales EDA Project
-
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.preprocessing import LabelEncoder
 
-# ---------------------------
-# 1. Load Dataset
-# ---------------------------
-df = pd.read_csv("retail_sales_dataset.csv")
+# 1. Data Collection
+# Using the Housing Prices Dataset by Yasser H (downloaded as Housing.csv)
+df = pd.read_csv("Housing.csv")
 
-# Rename columns (remove spaces)
-df.columns = df.columns.str.replace(" ", "_")
-
+# 2. Data Exploration and Cleaning
+print("Dataset Head:")
 print(df.head())
-print(df.info())
 
-# ---------------------------
-# 2. Data Cleaning
-# ---------------------------
-df.drop_duplicates(inplace=True)
-df["Date"] = pd.to_datetime(df["Date"])
+# Check for missing values
+print("\nMissing Values Check:")
+print(df.isnull().sum())
 
-# ---------------------------
-# 3. Descriptive Statistics
-# ---------------------------
-print("\nDescriptive Statistics:")
-print(df.describe())
+# Visualize the distribution of the target variable 'price'
+plt.figure(figsize=(10, 6))
+sns.histplot(df['price'], kde=True, color='blue')
+plt.title('Distribution of House Prices')
+plt.xlabel('Price')
+plt.ylabel('Frequency')
+plt.savefig('price_distribution.png')
+plt.close()
 
-mean_sales = df["Total_Amount"].mean()
-median_sales = df["Total_Amount"].median()
-std_sales = df["Total_Amount"].std()
+# Explore relationships between categorical variables and price
+categorical_cols_raw = ['mainroad', 'guestroom', 'basement', 'hotwaterheating', 'airconditioning', 'prefarea', 'furnishingstatus']
+plt.figure(figsize=(15, 12))
+for i, col in enumerate(categorical_cols_raw):
+    plt.subplot(3, 3, i+1)
+    sns.boxplot(x=col, y='price', data=df)
+    plt.title(f'Price vs {col}')
+plt.tight_layout()
+plt.savefig('categorical_boxplots.png')
+plt.close()
 
-print("Mean Sales:", mean_sales)
-print("Median Sales:", median_sales)
-print("Standard Deviation:", std_sales)
+# 3. Data Preprocessing (Feature Selection & Encoding)
+# Encoding binary categorical features
+le = LabelEncoder()
+binary_cols = ['mainroad', 'guestroom', 'basement', 'hotwaterheating', 'airconditioning', 'prefarea']
+for col in binary_cols:
+    df[col] = le.fit_transform(df[col])
 
-# ---------------------------
-# 4. Time Series Analysis
-# ---------------------------
-monthly_sales = (
-    df.groupby(df["Date"].dt.to_period("M"))["Total_Amount"]
-    .sum()
-    .to_timestamp()
-)
+# One-hot encoding for multi-level categorical feature 'furnishingstatus'
+df = pd.get_dummies(df, columns=['furnishingstatus'], drop_first=True)
 
-plt.figure()
-plt.plot(monthly_sales)
-plt.title("Monthly Sales Trend")
-plt.xlabel("Month")
-plt.ylabel("Total Sales")
-plt.show()
+# 4. Correlation Analysis
+plt.figure(figsize=(12, 10))
+sns.heatmap(df.corr(), annot=True, cmap="YlGnBu", fmt=".2f")
+plt.title("Correlation Heatmap of Features")
+plt.savefig("correlation_heatmap.png")
+plt.close()
 
-# ---------------------------
-# 5. Product Category Analysis
-# ---------------------------
-category_sales = (
-    df.groupby("Product_Category")["Total_Amount"]
-    .sum()
-    .sort_values(ascending=False)
-)
+# 5. Feature Selection
+# Using all relevant features for the predictive model
+X = df.drop('price', axis=1)
+y = df['price']
 
-plt.figure()
-category_sales.plot(kind="bar")
-plt.title("Sales by Product Category")
-plt.xlabel("Product Category")
-plt.ylabel("Total Sales")
-plt.show()
+# 6. Model Training
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-# ---------------------------
-# 6. Customer Analysis
-# ---------------------------
-customer_sales = df.groupby("Customer_ID")["Total_Amount"].sum()
+model = LinearRegression()
+model.fit(X_train, y_train)
 
-plt.figure()
-sns.histplot(customer_sales, bins=20)
-plt.title("Customer Spending Distribution")
-plt.xlabel("Total Spending")
-plt.show()
+# 7. Model Evaluation
+y_pred = model.predict(X_test)
 
-# ---------------------------
-# 7. Correlation Heatmap
-# ---------------------------
-plt.figure()
-sns.heatmap(df.corr(numeric_only=True), annot=True, cmap="coolwarm")
-plt.title("Correlation Heatmap")
-plt.show()
+mse = mean_squared_error(y_test, y_pred)
+rmse = np.sqrt(mse)
+r2 = r2_score(y_test, y_pred)
+
+print(f"\nModel Evaluation Metrics:")
+print(f"Mean Squared Error: {mse:,.2f}")
+print(f"Root Mean Squared Error: {rmse:,.2f}")
+print(f"R-squared: {r2:.4f}")
+
+# 8. Visualizing Actual vs Predicted
+plt.figure(figsize=(10, 6))
+sns.regplot(x=y_test, y=y_pred, scatter_kws={'alpha':0.5}, line_kws={'color':'red'})
+plt.xlabel("Actual Prices")
+plt.ylabel("Predicted Prices")
+plt.title("Actual vs Predicted House Prices (with Regression Line)")
+plt.savefig("actual_vs_predicted_refined.png")
+plt.close()
+
+# Residual Analysis
+residuals = y_test - y_pred
+plt.figure(figsize=(10, 6))
+sns.histplot(residuals, kde=True, color='purple')
+plt.title("Distribution of Residuals")
+plt.xlabel("Residual (Actual - Predicted)")
+plt.savefig("residuals_distribution.png")
+plt.close()
+
+print("\nAll visualizations have been saved in the project directory.")
